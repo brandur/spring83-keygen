@@ -33,25 +33,27 @@ func (p *keyPair) PrivateKeyHex() string { return hex.EncodeToString(p.PrivateKe
 func (p *keyPair) PublicKeyHex() string  { return hex.EncodeToString(p.PublicKey) }
 
 func main() {
-	t := time.Now()
+	var (
+		t            = time.Now()
+		targetSuffix = validKeySuffix(t)
+	)
 
-	key, err := findConformingKey(context.Background(), t)
+	key, err := findConformingKey(context.Background(), targetSuffix)
 	if err != nil {
 		fmt.Printf("error: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("spring '83 key successfully brute forced")
+	fmt.Printf("spring '83 key successfully brute forced in %v\n", time.Since(t))
 	fmt.Printf("private key (hex): %s\n", key.PrivateKeyHex())
 	fmt.Printf("public key (hex):  %s\n", key.PublicKeyHex())
 }
 
-func findConformingKey(ctx context.Context, t time.Time) (*keyPair, error) {
+func findConformingKey(ctx context.Context, targetSuffix string) (*keyPair, error) {
 	var (
 		closeChan        = make(chan struct{})
 		conformingKey    *keyPair
 		conformingKeyMut sync.Mutex
-		targetSuffix     = "83e" + t.Add(validKeyAge).Format(expiryDigitsTimeFormat)
 	)
 
 	{
@@ -70,7 +72,7 @@ func findConformingKey(ctx context.Context, t time.Time) (*keyPair, error) {
 
 					publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
 					if err != nil {
-						xerrors.Errorf("error generating key: %w", err)
+						return xerrors.Errorf("error generating key: %w", err)
 					}
 
 					key := &keyPair{privateKey, publicKey}
@@ -80,16 +82,26 @@ func findConformingKey(ctx context.Context, t time.Time) (*keyPair, error) {
 						conformingKey = key
 						conformingKeyMut.Unlock()
 
-						close(closeChan)
+						// Wrapped in a select to ensure that only one goroutine
+						// ends up closing the channel.
+						select {
+						case <-closeChan:
+						default:
+							close(closeChan)
+						}
 					}
 				}
 			})
 		}
 
 		if err := errGroup.Wait(); err != nil {
-			return nil, err
+			return nil, xerrors.Errorf("error finding key: %w", err)
 		}
 	}
 
 	return conformingKey, nil
+}
+
+func validKeySuffix(t time.Time) string {
+	return "83e" + t.Add(validKeyAge).Format(expiryDigitsTimeFormat)
 }
