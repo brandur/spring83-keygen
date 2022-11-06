@@ -30,7 +30,7 @@ func TestFindConformingKey(t *testing.T) {
 		start := time.Now()
 		key, totalIterations, err := findConformingKey(ctx, "")
 		require.NoError(t, err)
-		require.Equal(t, runtime.NumCPU(), totalIterations)
+		require.LessOrEqual(t, totalIterations, runtime.NumCPU())
 		showKeys(key, start, totalIterations)
 	})
 
