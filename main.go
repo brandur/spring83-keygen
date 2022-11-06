@@ -38,22 +38,23 @@ func main() {
 		targetSuffix = validKeySuffix(t)
 	)
 
-	key, err := findConformingKey(context.Background(), targetSuffix)
+	key, totalIterations, err := findConformingKey(context.Background(), targetSuffix)
 	if err != nil {
 		fmt.Printf("error: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("spring '83 key successfully brute forced in %v\n", time.Since(t))
+	fmt.Printf("spring '83 key successfully brute forced in %v with %d iterations\n", time.Since(t), totalIterations)
 	fmt.Printf("private key (hex): %s\n", key.PrivateKeyHex())
 	fmt.Printf("public key (hex):  %s\n", key.PublicKeyHex())
 }
 
-func findConformingKey(ctx context.Context, targetSuffix string) (*keyPair, error) {
+func findConformingKey(ctx context.Context, targetSuffix string) (*keyPair, int, error) {
 	var (
-		closeChan        = make(chan struct{})
-		conformingKey    *keyPair
-		conformingKeyMut sync.Mutex
+		closeChan       = make(chan struct{})
+		conformingKey   *keyPair
+		mut             sync.Mutex
+		totalIterations int
 	)
 
 	{
@@ -61,14 +62,22 @@ func findConformingKey(ctx context.Context, targetSuffix string) (*keyPair, erro
 
 		for i := 0; i < runtime.NumCPU(); i++ {
 			errGroup.Go(func() error {
+				var numIterations int
+
 				for {
 					// Check if we're done by looking for a close on the close
 					// channel.
 					select {
 					case <-closeChan:
+						mut.Lock()
+						totalIterations += numIterations
+						mut.Unlock()
+
 						return nil
 					default:
 					}
+
+					numIterations++
 
 					publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
 					if err != nil {
@@ -78,9 +87,9 @@ func findConformingKey(ctx context.Context, targetSuffix string) (*keyPair, erro
 					key := &keyPair{privateKey, publicKey}
 
 					if strings.HasSuffix(key.PublicKeyHex(), targetSuffix) {
-						conformingKeyMut.Lock()
+						mut.Lock()
 						conformingKey = key
-						conformingKeyMut.Unlock()
+						mut.Unlock()
 
 						// Wrapped in a select to ensure that only one goroutine
 						// ends up closing the channel.
@@ -95,11 +104,11 @@ func findConformingKey(ctx context.Context, targetSuffix string) (*keyPair, erro
 		}
 
 		if err := errGroup.Wait(); err != nil {
-			return nil, xerrors.Errorf("error finding key: %w", err)
+			return nil, 0, xerrors.Errorf("error finding key: %w", err)
 		}
 	}
 
-	return conformingKey, nil
+	return conformingKey, totalIterations, nil
 }
 
 func validKeySuffix(t time.Time) string {

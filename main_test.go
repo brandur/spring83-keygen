@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"testing"
 	"time"
 
@@ -17,7 +18,8 @@ func TestExpiryDigitsTimeFormat(t *testing.T) {
 func TestFindConformingKey(t *testing.T) {
 	ctx := context.Background()
 
-	showKeys := func(key *keyPair) {
+	showKeys := func(key *keyPair, start time.Time, totalIterations int) {
+		fmt.Printf("took %v with %d iterations\n", time.Since(start), totalIterations)
 		fmt.Printf("private key (hex): %s\n", key.PrivateKeyHex())
 		fmt.Printf("public key (hex):  %s\n", key.PublicKeyHex())
 	}
@@ -25,21 +27,25 @@ func TestFindConformingKey(t *testing.T) {
 	// Ultra simplistic example with no suffix, meaning the first key generated
 	// gets returned.
 	t.Run("NoSuffix", func(t *testing.T) {
-		key, err := findConformingKey(ctx, "")
+		start := time.Now()
+		key, totalIterations, err := findConformingKey(ctx, "")
 		require.NoError(t, err)
-		showKeys(key)
+		require.Equal(t, runtime.NumCPU(), totalIterations)
+		showKeys(key, start, totalIterations)
 	})
 
 	t.Run("VeryEasySuffix", func(t *testing.T) {
-		key, err := findConformingKey(ctx, "aa")
+		start := time.Now()
+		key, totalIterations, err := findConformingKey(ctx, "aa")
 		require.NoError(t, err)
-		showKeys(key)
+		showKeys(key, start, totalIterations)
 	})
 
 	t.Run("EasySuffix", func(t *testing.T) {
-		key, err := findConformingKey(ctx, "aaa")
+		start := time.Now()
+		key, totalIterations, err := findConformingKey(ctx, "aaa")
 		require.NoError(t, err)
-		showKeys(key)
+		showKeys(key, start, totalIterations)
 	})
 }
 
