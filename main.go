@@ -47,8 +47,8 @@ func main() {
 	}
 
 	fmt.Printf("Succeeded in %v with %d iterations\n", time.Since(t), totalIterations)
-	fmt.Printf("private key (hex): %s\n", key.PrivateKeyHex())
-	fmt.Printf("public key (hex):  %s\n", key.PublicKeyHex())
+	fmt.Printf("Private key (hex): %s\n", key.PrivateKeyHex())
+	fmt.Printf("Public  key (hex): %s\n", key.PublicKeyHex())
 }
 
 func findConformingKey(ctx context.Context, targetSuffix string) (*keyPair, int, error) {
