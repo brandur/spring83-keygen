@@ -38,13 +38,15 @@ func main() {
 		targetSuffix = validKeySuffix(t)
 	)
 
+	fmt.Printf("Brute forcing a Spring '83 key (this could take a while)")
+
 	key, totalIterations, err := findConformingKey(context.Background(), targetSuffix)
 	if err != nil {
 		fmt.Printf("error: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("spring '83 key successfully brute forced in %v with %d iterations\n", time.Since(t), totalIterations)
+	fmt.Printf("Succeeded in %v with %d iterations\n", time.Since(t), totalIterations)
 	fmt.Printf("private key (hex): %s\n", key.PrivateKeyHex())
 	fmt.Printf("public key (hex):  %s\n", key.PublicKeyHex())
 }
