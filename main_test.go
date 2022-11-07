@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -38,6 +39,7 @@ func TestFindConformingKey(t *testing.T) {
 		start := time.Now()
 		key, totalIterations, err := findConformingKey(ctx, "aa")
 		require.NoError(t, err)
+		require.True(t, strings.HasSuffix(key.PublicKeyHex(), "aa"))
 		showKeys(key, start, totalIterations)
 	})
 
@@ -45,8 +47,38 @@ func TestFindConformingKey(t *testing.T) {
 		start := time.Now()
 		key, totalIterations, err := findConformingKey(ctx, "aaa")
 		require.NoError(t, err)
+		require.True(t, strings.HasSuffix(key.PublicKeyHex(), "aaa"))
 		showKeys(key, start, totalIterations)
 	})
+}
+
+func TestHexBytes(t *testing.T) {
+	{
+		sBytes, oddChars := hexBytes("5678")
+		require.Equal(t, []byte{0x56, 0x78}, sBytes)
+		require.False(t, oddChars)
+	}
+
+	{
+		sBytes, oddChars := hexBytes("678")
+		require.Equal(t, []byte{0x06, 0x78}, sBytes)
+		require.True(t, oddChars)
+	}
+}
+
+func TestSuffixBytesEqual(t *testing.T) {
+	require.True(t, suffixBytesEqual([]byte{0x78}, []byte{}, false))
+
+	require.True(t, suffixBytesEqual([]byte{0x78}, []byte{0x78}, false))
+	require.True(t, suffixBytesEqual([]byte{0x56, 0x78}, []byte{0x78}, false))
+	require.False(t, suffixBytesEqual([]byte{0x78, 0x56}, []byte{0x78}, false))
+
+	require.False(t, suffixBytesEqual([]byte{0x78}, []byte{0x08}, false))
+	require.True(t, suffixBytesEqual([]byte{0x78}, []byte{0x08}, true))
+
+	require.True(t, suffixBytesEqual([]byte{0x34, 0x56, 0x78}, []byte{0x56, 0x78}, false))
+	require.False(t, suffixBytesEqual([]byte{0x34, 0x56, 0x78}, []byte{0x06, 0x08}, false))
+	require.True(t, suffixBytesEqual([]byte{0x34, 0x56, 0x78}, []byte{0x06, 0x78}, true))
 }
 
 func TestValidKeySuffix(t *testing.T) {

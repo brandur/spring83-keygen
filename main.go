@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
@@ -8,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"strings"
 	"sync"
 	"time"
 
@@ -33,17 +33,14 @@ func (p *keyPair) PrivateKeyHex() string { return hex.EncodeToString(p.PrivateKe
 func (p *keyPair) PublicKeyHex() string  { return hex.EncodeToString(p.PublicKey) }
 
 func main() {
-	var (
-		t            = time.Now()
-		targetSuffix = validKeySuffix(t)
-	)
+	t := time.Now()
+	targetSuffix := validKeySuffix(t)
 
-	fmt.Printf("Brute forcing a Spring '83 key (this could take a while)")
+	fmt.Printf("Brute forcing a Spring '83 key (this could take a while)\n")
 
 	key, totalIterations, err := findConformingKey(context.Background(), targetSuffix)
 	if err != nil {
-		fmt.Printf("error: %v\n", err)
-		os.Exit(1)
+		abort(err.Error())
 	}
 
 	fmt.Printf("Succeeded in %v with %d iterations\n", time.Since(t), totalIterations)
@@ -51,6 +48,34 @@ func main() {
 	fmt.Printf("Public  key (hex): %s\n", key.PublicKeyHex())
 }
 
+func abort(format string, a ...any) {
+	fmt.Fprintf(os.Stderr, "error: "+format+"\n", a...)
+	os.Exit(1)
+}
+
+// Bytewise suffix comparison that lets us avoid encoding every single generated
+// key to a hex string. The `oddChars` flag handles the case where we only care
+// about the half byte at the boundary, as is the case with a Spring '83 key
+// where the last seven hex characters are relevant (each two characters are a
+// byte).
+func suffixBytesEqual(b, suffix []byte, oddChars bool) bool {
+	if len(suffix) < 1 {
+		return true
+	}
+
+	if oddChars {
+		bBoundary := b[len(b)-len(suffix)]
+		suffixBoundary := suffix[0]
+
+		return bBoundary&0x0f == suffixBoundary&0x0f &&
+			bytes.Equal(b[len(b)-len(suffix)+1:], suffix[1:])
+	}
+
+	return bytes.Equal(b[len(b)-len(suffix):], suffix)
+}
+
+// Runs a parallel search for an Ed25519 key where the hex-encoded public
+// portion has the given target suffix.
 func findConformingKey(ctx context.Context, targetSuffix string) (*keyPair, int, error) {
 	var (
 		closeChan       = make(chan struct{})
@@ -58,6 +83,8 @@ func findConformingKey(ctx context.Context, targetSuffix string) (*keyPair, int,
 		mut             sync.Mutex
 		totalIterations int
 	)
+
+	targetSuffixBytes, oddChars := hexBytes(targetSuffix)
 
 	{
 		errGroup, _ := errgroup.WithContext(ctx)
@@ -88,18 +115,20 @@ func findConformingKey(ctx context.Context, targetSuffix string) (*keyPair, int,
 
 					key := &keyPair{privateKey, publicKey}
 
-					if strings.HasSuffix(key.PublicKeyHex(), targetSuffix) {
-						mut.Lock()
-						conformingKey = key
-						mut.Unlock()
+					if !suffixBytesEqual([]byte(privateKey), targetSuffixBytes, oddChars) {
+						continue
+					}
 
-						// Wrapped in a select to ensure that only one goroutine
-						// ends up closing the channel.
-						select {
-						case <-closeChan:
-						default:
-							close(closeChan)
-						}
+					mut.Lock()
+					conformingKey = key
+					mut.Unlock()
+
+					// Wrapped in a select to ensure that only one goroutine
+					// ends up closing the channel.
+					select {
+					case <-closeChan:
+					default:
+						close(closeChan)
 					}
 				}
 			})
@@ -111,6 +140,24 @@ func findConformingKey(ctx context.Context, targetSuffix string) (*keyPair, int,
 	}
 
 	return conformingKey, totalIterations, nil
+}
+
+// Breaks the given hex string into bytes. The boolean flag indicates whether
+// there was an odd number of hex characters which means that the most
+// significant byte only represents half a byte worth of relevant information.
+func hexBytes(s string) ([]byte, bool) {
+	var oddChars bool
+	if len(s)%2 == 1 {
+		oddChars = true
+		s = "0" + s
+	}
+
+	sBytes, err := hex.DecodeString(s)
+	if err != nil {
+		panic(err)
+	}
+
+	return sBytes, oddChars
 }
 
 func validKeySuffix(t time.Time) string {
