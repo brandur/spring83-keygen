@@ -19,7 +19,7 @@ func TestExpiryDigitsTimeFormat(t *testing.T) {
 func TestFindConformingKey(t *testing.T) {
 	ctx := context.Background()
 
-	showKeys := func(key *keyPair, start time.Time, totalIterations int) {
+	showKeys := func(key *ed25519KeyPair, start time.Time, totalIterations int) {
 		fmt.Printf("took %v with %d iterations\n", time.Since(start), totalIterations)
 		fmt.Printf("private key (hex): %s\n", key.PrivateKeyHex())
 		fmt.Printf("public key (hex):  %s\n", key.PublicKeyHex())

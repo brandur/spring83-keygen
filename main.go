@@ -24,13 +24,13 @@ const (
 	validKeyAge = 2 * 365 * 24 * time.Hour
 )
 
-type keyPair struct {
+type ed25519KeyPair struct {
 	PrivateKey ed25519.PrivateKey
 	PublicKey  ed25519.PublicKey
 }
 
-func (p *keyPair) PrivateKeyHex() string { return hex.EncodeToString(p.PrivateKey) }
-func (p *keyPair) PublicKeyHex() string  { return hex.EncodeToString(p.PublicKey) }
+func (p *ed25519KeyPair) PrivateKeyHex() string { return hex.EncodeToString(p.PrivateKey) }
+func (p *ed25519KeyPair) PublicKeyHex() string  { return hex.EncodeToString(p.PublicKey) }
 
 func main() {
 	t := time.Now()
@@ -55,10 +55,10 @@ func abort(format string, a ...any) {
 
 // Runs a parallel search for an Ed25519 key where the hex-encoded public
 // portion has the given target suffix.
-func findConformingKey(ctx context.Context, targetSuffix string) (*keyPair, int, error) {
+func findConformingKey(ctx context.Context, targetSuffix string) (*ed25519KeyPair, int, error) {
 	var (
 		closeChan         = make(chan struct{})
-		conformingKeyChan = make(chan *keyPair, runtime.NumCPU())
+		conformingKeyChan = make(chan *ed25519KeyPair, runtime.NumCPU())
 		totalIterations   int64
 	)
 
@@ -88,7 +88,7 @@ func findConformingKey(ctx context.Context, targetSuffix string) (*keyPair, int,
 						continue
 					}
 
-					conformingKeyChan <- &keyPair{privateKey, publicKey}
+					conformingKeyChan <- &ed25519KeyPair{privateKey, publicKey}
 
 					// Wrapped in a select to ensure that only one goroutine
 					// ends up closing the channel.
