@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -54,35 +53,13 @@ func abort(format string, a ...any) {
 	os.Exit(1)
 }
 
-// Bytewise suffix comparison that lets us avoid encoding every single generated
-// key to a hex string. The `oddChars` flag handles the case where we only care
-// about the half byte at the boundary, as is the case with a Spring '83 key
-// where the last seven hex characters are relevant (each two characters are a
-// byte).
-func suffixBytesEqual(b, suffix []byte, oddChars bool) bool {
-	if len(suffix) < 1 {
-		return true
-	}
-
-	if oddChars {
-		bBoundary := b[len(b)-len(suffix)]
-		suffixBoundary := suffix[0]
-
-		return bBoundary&0x0f == suffixBoundary&0x0f &&
-			bytes.Equal(b[len(b)-len(suffix)+1:], suffix[1:])
-	}
-
-	return bytes.Equal(b[len(b)-len(suffix):], suffix)
-}
-
 // Runs a parallel search for an Ed25519 key where the hex-encoded public
 // portion has the given target suffix.
 func findConformingKey(ctx context.Context, targetSuffix string) (*keyPair, int, error) {
 	var (
-		closeChan       = make(chan struct{})
-		conformingKey   *keyPair
-		mut             sync.Mutex
-		totalIterations int64
+		closeChan         = make(chan struct{})
+		conformingKeyChan = make(chan *keyPair, runtime.NumCPU())
+		totalIterations   int64
 	)
 
 	targetSuffixBytes, oddChars := hexBytes(targetSuffix)
@@ -92,34 +69,26 @@ func findConformingKey(ctx context.Context, targetSuffix string) (*keyPair, int,
 
 		for i := 0; i < runtime.NumCPU(); i++ {
 			errGroup.Go(func() error {
-				var numIterations int64
-
-				for {
+				for numIterations := 0; ; numIterations++ {
 					// Check if we're done by looking for a close on the close
 					// channel.
 					select {
 					case <-closeChan:
-						atomic.AddInt64(&totalIterations, numIterations)
+						atomic.AddInt64(&totalIterations, int64(numIterations))
 						return nil
 					default:
 					}
-
-					numIterations++
 
 					publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
 					if err != nil {
 						return xerrors.Errorf("error generating key: %w", err)
 					}
 
-					key := &keyPair{privateKey, publicKey}
-
 					if !suffixBytesEqual([]byte(privateKey), targetSuffixBytes, oddChars) {
 						continue
 					}
 
-					mut.Lock()
-					conformingKey = key
-					mut.Unlock()
+					conformingKeyChan <- &keyPair{privateKey, publicKey}
 
 					// Wrapped in a select to ensure that only one goroutine
 					// ends up closing the channel.
@@ -137,7 +106,7 @@ func findConformingKey(ctx context.Context, targetSuffix string) (*keyPair, int,
 		}
 	}
 
-	return conformingKey, int(totalIterations), nil
+	return <-conformingKeyChan, int(totalIterations), nil
 }
 
 // Breaks the given hex string into bytes. The boolean flag indicates whether
@@ -156,6 +125,29 @@ func hexBytes(s string) ([]byte, bool) {
 	}
 
 	return sBytes, oddChars
+}
+
+// Bytewise suffix comparison that lets us avoid encoding every single generated
+// key to a hex string. The `oddChars` flag handles the case where we only care
+// about the half byte at the boundary, as is the case with a Spring '83 key
+// where the last seven hex characters are relevant (each two characters are a
+// byte).
+func suffixBytesEqual(b, suffix []byte, oddChars bool) bool {
+	if len(suffix) < 1 {
+		return true
+	}
+
+	if oddChars {
+		bBoundary := b[len(b)-len(suffix)]
+		suffixBoundary := suffix[0]
+
+		// Compare the half byte at the boundary, and then the rest of suffix
+		// bytes as usual.
+		return bBoundary&0x0f == suffixBoundary&0x0f &&
+			bytes.Equal(b[len(b)-len(suffix)+1:], suffix[1:])
+	}
+
+	return bytes.Equal(b[len(b)-len(suffix):], suffix)
 }
 
 func validKeySuffix(t time.Time) string {
