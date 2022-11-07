@@ -10,6 +10,7 @@ import (
 	"os"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -81,7 +82,7 @@ func findConformingKey(ctx context.Context, targetSuffix string) (*keyPair, int,
 		closeChan       = make(chan struct{})
 		conformingKey   *keyPair
 		mut             sync.Mutex
-		totalIterations int
+		totalIterations int64
 	)
 
 	targetSuffixBytes, oddChars := hexBytes(targetSuffix)
@@ -91,17 +92,14 @@ func findConformingKey(ctx context.Context, targetSuffix string) (*keyPair, int,
 
 		for i := 0; i < runtime.NumCPU(); i++ {
 			errGroup.Go(func() error {
-				var numIterations int
+				var numIterations int64
 
 				for {
 					// Check if we're done by looking for a close on the close
 					// channel.
 					select {
 					case <-closeChan:
-						mut.Lock()
-						totalIterations += numIterations
-						mut.Unlock()
-
+						atomic.AddInt64(&totalIterations, numIterations)
 						return nil
 					default:
 					}
@@ -139,7 +137,7 @@ func findConformingKey(ctx context.Context, targetSuffix string) (*keyPair, int,
 		}
 	}
 
-	return conformingKey, totalIterations, nil
+	return conformingKey, int(totalIterations), nil
 }
 
 // Breaks the given hex string into bytes. The boolean flag indicates whether
