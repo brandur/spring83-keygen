@@ -57,8 +57,8 @@ func abort(format string, a ...any) {
 // portion has the given target suffix.
 func findConformingKey(ctx context.Context, targetSuffix string) (*ed25519KeyPair, int, error) {
 	var (
-		closeChan         = make(chan struct{})
 		conformingKeyChan = make(chan *ed25519KeyPair, runtime.NumCPU())
+		done              atomic.Bool
 		totalIterations   int64
 	)
 
@@ -70,13 +70,9 @@ func findConformingKey(ctx context.Context, targetSuffix string) (*ed25519KeyPai
 		for i := 0; i < runtime.NumCPU(); i++ {
 			errGroup.Go(func() error {
 				for numIterations := 0; ; numIterations++ {
-					// Check if we're done by looking for a close on the close
-					// channel.
-					select {
-					case <-closeChan:
+					if done.Load() {
 						atomic.AddInt64(&totalIterations, int64(numIterations))
 						return nil
-					default:
 					}
 
 					publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
@@ -90,13 +86,7 @@ func findConformingKey(ctx context.Context, targetSuffix string) (*ed25519KeyPai
 
 					conformingKeyChan <- &ed25519KeyPair{privateKey, publicKey}
 
-					// Wrapped in a select to ensure that only one goroutine
-					// ends up closing the channel.
-					select {
-					case <-closeChan:
-					default:
-						close(closeChan)
-					}
+					done.Store(true)
 				}
 			})
 		}
