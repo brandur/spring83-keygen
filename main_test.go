@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 )
 
 func TestExpiryDigitsTimeFormat(t *testing.T) {
@@ -18,6 +19,7 @@ func TestExpiryDigitsTimeFormat(t *testing.T) {
 
 func TestFindConformingKey(t *testing.T) {
 	ctx := context.Background()
+	defer goleak.VerifyNone(t)
 
 	showKeys := func(key *ed25519KeyPair, start time.Time, totalIterations int) {
 		fmt.Printf("took %v with %d iterations\n", time.Since(start), totalIterations)
