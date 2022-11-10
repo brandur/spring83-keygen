@@ -11,7 +11,7 @@ Generate a conforming key that will expire two years from this month:
     $ go run main.go
     Brute forcing a Spring '83 key (this could take a while)
     Succeeded in 3m0.280434083s with 54276464 iterations
-    Private key (hex): 90ba51828ecc30132d4707d55d24456fbd726514cf56ab4668b62392798e2540e90e9091b13a6e5194c1fed2728d1fdb6de7df362497d877b8c0b8f0883e1124
+    Private key (hex): 90ba51828ecc30132d4707d55d24456fbd726514cf56ab4668b62392798e2540
     Public  key (hex): e90e9091b13a6e5194c1fed2728d1fdb6de7df362497d877b8c0b8f0883e1124
 
 ## Development

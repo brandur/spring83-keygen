@@ -29,7 +29,7 @@ type ed25519KeyPair struct {
 	PublicKey  ed25519.PublicKey
 }
 
-func (p *ed25519KeyPair) PrivateKeyHex() string { return hex.EncodeToString(p.PrivateKey) }
+func (p *ed25519KeyPair) PrivateKeyHex() string { return hex.EncodeToString(p.PrivateKey.Seed()) }
 func (p *ed25519KeyPair) PublicKeyHex() string  { return hex.EncodeToString(p.PublicKey) }
 
 func main() {
