@@ -1,6 +1,6 @@
 # Spring '83 keygen [![Build Status](https://github.com/brandur/spring83-keygen/workflows/spring83-keygen%20CI/badge.svg)](https://github.com/brandur/spring83-keygen/actions)
 
-A very simple Go-based implementation for generating a [Spring '83 conforming key](https://github.com/robinsloan/spring-83/blob/main/draft-20220629.md#key-format). This involves generating by brute force until finding a key which contains a suffix containing a target expiry date and magic numbers. Takes ~3 to 10 minutes on my M1 Mac.
+A very simple Go-based implementation for generating a [Spring '83 conforming key](https://github.com/robinsloan/spring-83/blob/main/draft-20220629.md#key-format). This involves generating by brute force until finding a key which contains a suffix containing a target expiry date and magic numbers. Takes ~3 to 30 minutes on my M1 Mac.
 
 I know this duplicates work other people have done, but I did it for fun.
 
